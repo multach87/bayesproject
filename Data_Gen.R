@@ -26,18 +26,25 @@ reg.gen.simple <- function(n , beta) {
         View(sim.structure1)
         
         #generate repped conditions dataframe
-        sim.structure.repped <- as.data.frame(matrix(ncol = 5 , 
-                                                     nrow = (135*1000))) #MAKE SURE TO REPLACE
-                                                                             ##"CONS" AND "N.ITERS"
-        colnames(sim.structure.repped) <- c("n", "eta.x" , "eta.y" , "seed")
-        for(i in 1:nrow(sim.structure1)) {
-                sim.structure.repped[ ((1000*(i - 1)) + 1): (1000*i), (1:4)] <- 
-                        purrr::map_dfr(seq_len(1000) , ~sim.structure1[i , ])
+        create.sim.repped <- function(sim.structure1 , num.conds = nrow(sim.structure1) , 
+                                      num.pars ,  num.iters) {
+                sim.structure.repped <- as.data.frame(matrix(ncol = (num.pars + 1) , 
+                                                             nrow = (num.conds*num.iters))) 
+                colnames(sim.structure.repped) <- c("n", "beta" , "eta.x" , "eta.y" , "seed")
+                for(i in 1:nrow(sim.structure1)) {
+                        sim.structure.repped[ ((num.iters*(i - 1)) + 1): (num.iters*i), (1:num.pars)] <- 
+                                purrr::map_dfr(seq_len(num.iters) , ~sim.structure1[i , ])
+                }
+                sim.structure.repped[ , "seed"] <- rnorm((num.conds*num.iters))
+                return(sim.structure.repped)
         }
-        sim.structure.repped[ , "seed"] <- rnorm((CONS*N.ITERS))  #MAKE SURE TO REPLACE "CONS"
-                                                                  #AND "N.ITERS"
+        sim.repped <- create.sim.repped(sim.structure1 = sim.structure1 , num.pars = 4 , num.iters = 1000)
+        which(is.na(sim.repped))                    #check that there are no missing values
+        head(sim.structure.repped)                  #verify that everything populations appropriated
         
-        data.gen <- function(n , beta , eta.x , eta.y , seed) {      #Actual data generation
+        reg.gen.full <- function(n , beta , eta.x , eta.y , seed) {      #Actual data generation
+                paste("n = " , n , "beta = " , beta , "eta.x = " , eta.x , "eta.y = " , 
+                    eta.y , "\n")
                 beta <- beta  #store beta value
                 seed <- seed  #store seed
                 #generate uncontam. X values
@@ -65,27 +72,39 @@ reg.gen.simple <- function(n , beta) {
         }
 }
 
+bayes.data.full <- sim.structure.repped %>%   
+        pmap(reg.gen.full)
+
+#save data to computer
+saveRDS(data.full , "/Users/Matt Multach/Desktop/XXXXX/bayes_data_110419.RData")
+
 
 
 reg.list <- list()                           #create empty list to fill with loop
-for(i in 1:1000) {
-       cat("i = " , i , "\n")                #tracker for how much of loop is done
-       low.list <- reg.gen.simple(n = 25 , beta = 3.7)   #create sub-list of simulated regression 
-                                                         ##data
-                                                         ##Randomly chose n, beta
-       reg.list[[i]] <- low.list             #fill in meta-list with simulation data
-       if(i == 1000) {                       #save combiend list of all simulated data if 
-              return(reg.list)               ##end of loop; if you change the number of iterations,
-       }                                     ##make sure to change if(i == ???)
-}
 
 reg.list.summary <- function(data) {         #function to model data from sub-list elements
        summary(lm(data$Y ~ data$X))
 }
-summary.list <- lapply(reg.list , reg.list.summary)     #apply above function to each iteration 
+summary.list <- lapply(bayes.data.full , reg.list.summary)     #apply above function to each iteration 
                                                         ##of simulated data
 
 names(summary.list[[1]])         ##lots of info in these summaries
+
+
+
+
+
+for(i in 1:nrow(sim.structure.repped)) {
+        cat("i = " , i , "\n")                #tracker for how much of loop is done
+        low.list <- reg.gen.simple(n = 25 , beta = 3.7)   #create sub-list of simulated regression 
+        ##data
+        ##Randomly chose n, beta
+        reg.list[[i]] <- low.list             #fill in meta-list with simulation data
+        if(i == 1000) {                       #save combiend list of all simulated data if 
+                return(reg.list)               ##end of loop; if you change the number of iterations,
+        }                                     ##make sure to change if(i == ???)
+}
+
 
 
 
