@@ -14,19 +14,20 @@ reg.gen.simple <- function(n , beta) {
         library(purrr)
         
         #generate initial 108 data conditions
-        sim.structure1 <- as.data.frame(matrix(ncol = 4 , nrow = CONS)) #MAKE SURE TO REPLACE "CONS
+        sim.structure1 <- as.data.frame(matrix(ncol = 4 , nrow = 135)) 
         {
                 colnames(sim.structure1) <- c("n" , "beta" , "eta.x" , "eta.y")
                 sim.structure1[ , "eta.x"] <- c(rep(c(0.0 , 0.1 , 0.2)))
                 sim.structure1[ , "eta.y"] <- c(rep(0.0 , 3) , rep(0.1 , 3) , rep(0.2 , 3))
                 sim.structure1[ , "beta"] <- c(rep(1 , 9) , rep(3 , 9) , rep(10 , 9))
-                sim.structure1[ , "n"] <- c(rep(25 , 27) , rep(50 , 27) , rep(100 , 27) , rep(200 , 27))
+                sim.structure1[ , "n"] <- c(rep(25 , 27) , rep(50 , 27) , rep(100 , 27) , 
+                                            rep(200 , 27) , rep(1000 , 27))
         }
         View(sim.structure1)
         
         #generate repped conditions dataframe
         sim.structure.repped <- as.data.frame(matrix(ncol = 5 , 
-                                                     nrow = (CONS*N.ITERS))) #MAKE SURE TO REPLACE
+                                                     nrow = (135*1000))) #MAKE SURE TO REPLACE
                                                                              ##"CONS" AND "N.ITERS"
         colnames(sim.structure.repped) <- c("n", "eta.x" , "eta.y" , "seed")
         for(i in 1:nrow(sim.structure1)) {
