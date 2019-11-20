@@ -151,23 +151,23 @@ MattMohammad <- function(data,
   #####frequentist section
   
   ####training data
-  X = bayes.data.full[[1]]$X
-  Y = data$Y
-  temp = data.frame(X,Y)
+  X <- data$X
+  Y <- data$Y
+  temp <- data.frame(X,Y)
   #ifelse(is.data.frame(data), print("getting started..."), errorCondition("data is not valid"))
   cat("nrow(temp) = " , nrow(temp) , "\n")
-  sample_size = nrow(temp)
+  sample_size <- nrow(temp)
   cat("sample_size = " , sample_size , "\n")
   ## train_percent percent
   #\\\train_percent = 0.75 #this should be changable in the function
-  smp_size = floor(train_percent * sample_size)
+  smp_size <- floor(train_percent * sample_size)
   cat("smp_size = " , smp_size , "\n")
   ## set the seed to make your partition reproducible
   set.seed(1)
-  train_ind = sample(seq_len(sample_size), size = smp_size)
+  train_ind <- sample(seq_len(sample_size), size = smp_size)
   
-  train = temp[train_ind, ]
-  test = temp[-train_ind, ]
+  train <- temp[train_ind , ]
+  test <- temp[-train_ind , ]
   
   
   
