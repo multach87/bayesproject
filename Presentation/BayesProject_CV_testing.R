@@ -1,70 +1,28 @@
 #Balanced kfold subsetting
-kfold_subsetter <- function(data , k , seed = 7 , list = FALSE) {
-       
-       if(length(dim(data)) == 2) { ###For 2D data
-              #determine number of larger subsets (when unequal subsets)
-              nsams.large <- nrow(data) %% k
-              
-              #determine number of smaller subsets (total number when equal subsets)
-              nsams.small <- k - nsams.large
-              
-              #determine sample size of larger subsets (when unequal subsets)
-              samsize.large <- ceiling(nrow(data) / k) * (nsams.large != 0)
-              
-              #determine sample size of smaller subsets (all subset size when equal subsets)
-              samsize.small <- floor(nrow(data) / k)
-              
-              #indicator for which subset
-              subset.indicator <- c(rep((1 : k) , floor(nrow(data) / k)) ,
-                                    rep((1 : (nsams.large) ) , (1 * (nsams.large != 0)) ))
-              
-              #fix random assignment process
-              if(seed) {
-                     set.seed(seed)
-              }
-              
-              #combine subset indicator with original data  
-              newdata <- cbind(data , subset = sample(subset.indicator))
-              if(list) {
-                     newdata <- return(split(newdata[ , -ncol(newdata)] ,
-                                             f = newdata[ , ncol(newdata)]))
-              } else {
-                     newdata <- return(newdata)
-              }
-       } else if (length(dim(data)) == 0){   #for 1D data
-              #determine number of larger subsets (when unequal subsets)
-              nsams.large <- length(data) %% k
-              
-              #determine number of smaller subsets (total number when equal subsets)
-              nsams.small <- k - nsams.large
-              
-              #determine sample size of larger subsets (when unequal subsets)
-              samsize.large <- ceiling(length(data) / k) * (nsams.large != 0)
-              
-              #determine sample size of smaller subsets (all subset size when equal subsets)
-              samsize.small <- floor(length(data) / k)
-              
-              #indicator for which subset
-              subset.indicator <- c(rep((1 : k) , floor(length(data) / k)) ,
-                                    rep((1 : (nsams.large) ) , (1 * (nsams.large != 0)) ))
-              
-              #fix random assignment process
-              if(seed) {
-                     set.seed(seed)
-              }
-              
-              #combine subset indicator with original data
-              #create split list if desired
-              newdata <- matrix(cbind(data , 
-                                      subset = sample(subset.indicator)) , 
-                                ncol = 2)
-              if(list) {
-                     newdata <- return(split(newdata[ , -ncol(newdata)] ,
-                                             f = newdata[ , ncol(newdata)]))
-              } else {
-                     newdata <- return(newdata)
-              }
-       }
+kfold_subsetter.vec <- function(n , k , seed = 7) {
+        #determine number of larger subsets (when unequal subsets)
+        nsams.large <- n %% k
+        
+        #determine number of smaller subsets (total number when equal subsets)
+        nsams.small <- k - nsams.large
+        
+        #determine sample size of larger subsets (when unequal subsets)
+        samsize.large <- ceiling(n / k) * (nsams.large != 0)
+        
+        #determine sample size of smaller subsets (all subset size when equal subsets)
+        samsize.small <- floor(n / k)
+        
+        #indicator for which subset
+        subset.indicator <- c(rep((1 : k) , floor(n / k)) ,
+                              rep((1 : (nsams.large) ) , (1 * (nsams.large != 0)) ))
+        
+        #fix random assignment process
+        if(seed) {
+                set.seed(seed)
+        }
+        
+        #combine subset indicator with original data  
+        kfold.subset <- return(sample(subset.indicator))
 }
 
 
@@ -123,8 +81,10 @@ kfold_subsetter <- function(data , k , seed = 7 , list = FALSE) {
                         err <- err.UC
                 }
                 Y <- X * beta + err                      #generate Y values
-                combine <- list(Y = Y , X = X , err = err , n = n , beta = beta , 
-                                eta.x = eta.x , eta.y = eta.y ,
+                subset.ind <- kfold_subsetter.vec(n = n , k = 5) #NOTE: k is specified here; should be a part of 
+                                                                 ##sim.structure matrix that is input
+                combine <- list(Y = Y , X = X , err = err , subset = subset.ind , n = n , 
+                                beta = beta , eta.x = eta.x , eta.y = eta.y , 
                                 seed = seed)        #create combined list of all values
                 return(combine)                       #save combined list of all values
         }
@@ -142,6 +102,7 @@ bayes.data.pres <- sim.repped %>%
 
 #Note 1: Simple LM vs. CV vs. Bootstrapping
 #Note 2: Different freq vs. bayes k
+#Note 3: bayes and freq k incorporated into sim.structure
 
 
 
@@ -149,13 +110,24 @@ data <- bayes.data.pres[[1]]
 
 X <- data$X
 Y <- data$Y
-temp <- data.frame(X,Y)
+subset <- data$subset
+temp <- data.frame(X , Y , subset)
 bayes_K = 5
-temp <- kfold_subsetter(temp , k = bayes_K)
+
+train <- temp[temp$subset != 1 , c("X" , "Y")]
+test <- temp[temp$subset == 1 , c("X" , "Y")]
+fit <- lm(train$Y ~ train$X)
 
 for(i in 1:bayes_K) {
-        
+        train <- temp[temp$subset != 1 , c("X" , "Y")]
+        test <- temp[temp$subset == 1 , c("X" , "Y")]
+        #RUN here
+        fit <- lm(train$)
 }
+
+
+
+
 
 train.ind <- temp[ , "subset"]
 
@@ -167,20 +139,23 @@ kfold_cv <- function(data) {
 }
 
 
-FreqyBayes.CV <- function(data , freq_K , R , bayes_K ,
+FreqyBayes.CV <- function(data , freq_K , R , K ,
                          Diffusion , family_brms = c("gaussian","student","skew_normal")) {
        #####frequentist section
        
        ####training data
        #///this needs to be flexible to the data that goes in
        #///currently only does from object with "X" and "Y" columns
-       {X <- data$X
-       Y <- data$Y}
-       temp <- data.frame(X,Y)
-       
-       temp <- kfold_subsetter(temp , k = bayes_K)
-       
-       train <- split(temp[ , -3] , f = temp[ , "subset"])
+        {X <- data$X
+        Y <- data$Y}
+        subset <- data$subset
+        temp <- data.frame(X , Y , subset)
+        
+        for(i in 1:bayes_K) {
+                train <- temp[temp$subset != 1 , c("X" , "Y")]
+                test <- temp[temp$subset == 1 , c("X" , "Y")]
+                #RUN here
+        }
        
 
        ###Cross-validated regression
