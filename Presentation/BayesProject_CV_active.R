@@ -107,8 +107,76 @@ library(caret)
 ##Note 5: simulated data for any given regression model
 #Note 6: Make function to be able to work with either brms or stan
 
+data <- bayes.data.pres[[225]]
+X <- data$X
+Y <- data$Y
+K <- 5
+freq_K <- 5
+Diffusion = 0.1
+family_brms = "gaussian"
+subset.ind <- kfold_subsetter.vec(n = length(X) , k = K)
+temp <- data.frame(X , Y , subset = subset.ind)
+train <- temp[temp$subset != 1 , c("X" , "Y")]
+test <- temp[temp$subset == 1 , c("X" , "Y")]
 
-FreqInBayes.CV <- function(data , freq_K , K , Diffusion = 0.1 , 
+{
+        data_ctrl <- trainControl(method = "cv", number = freq_K)
+        model_caret <- train(Y ~ X , data = train , trControl = data_ctrl ,
+                             method = "lm" , na.action = na.pass)
+        model_cv_final <- model_caret$finalModel
+        model_cv_final <- summary(model_cv_final)
+        sigma <- model_cv_final$sigma
+        model_coeff <- model_cv_final$coefficients
+        intercept_b <- model_coeff[1 , 1]
+        intercept_SE <- model_coeff[1 , 2]
+        X_b <- model_coeff[2 , 1]
+        X_SE <- model_coeff[2 , 2]
+        
+        
+        ###Diffusion parameter
+        #\\\Diffusion = 0.1 #this should be changeable in the function (0 to 1)
+        Diffusion <- Diffusion*100
+        if (Diffusion == 0){
+                Diffusion <- 1
+        }
+        SD_intercept <- intercept_SE*sqrt(Diffusion)
+        SD_b <- intercept_b*sqrt(Diffusion)
+        sigma <- sigma * sqrt(Diffusion)
+        
+        ###Bayesian section
+        #NOTE: requires package 'brms'
+        #\\\family_brms = "gaussian" #this should be changable (gaussian,student,skew_normal)
+        
+        jj_intercept <- paste("normal(",intercept_b,',',SD_intercept, ")")
+        jj_b <- paste("normal(",X_b,',',SD_b, ")")
+        jj_sigma <- paste("student_t(", sigma, ',', 0, ',', 5, ")")
+        
+        
+        m1priors <- c(
+                prior_string(jj_intercept, class = "Intercept"),
+                prior_string(jj_b, class = "b"),
+                prior_string(jj_sigma, class = "sigma")
+        )
+}
+
+m1 <- brm(
+        Y~X,
+        data = test,
+        prior = m1priors,
+        family = family_brms,
+        seed = 1,
+        iter = 4000,
+        chains = 4
+)
+
+y.m1 <- get_y(m1) 
+ypred <- posterior_linpred(m1, transform = TRUE) 
+
+
+
+
+
+FreqInBayes.CV <- function(data , freq_K , K , Diffusion , 
                            family_brms = c("gaussian","student","skew_normal")) {
         #print current status
         cat("eta.x = " , data$eta.x , ", eta.y = " , data$eta.y , 
@@ -128,6 +196,7 @@ FreqInBayes.CV <- function(data , freq_K , K , Diffusion = 0.1 ,
         for(i in 1 : (K + 1)) {
                 if(i == 1) {
                         out[[i]] <- list(subset = subset.ind)
+                        cat("i1 = " , i , "\n")
                 } else {
                         #status updater
                         cat("eta.x = " , data$eta.x , ", eta.y = " , data$eta.y , 
