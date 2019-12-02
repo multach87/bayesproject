@@ -53,7 +53,7 @@ kfold_subsetter.vec <- function(n , k , seed = 7) {
                                                              nrow = (num.conds * num.iters))) 
                 colnames(sim.structure.repped) <- c("beta", "n" , "eta.x" , "eta.y" , "seed")
                 for(i in 1:nrow(sim.structure)) {
-                        sim.structure.repped[((num.iters * (i - 1)) + 1) : (num.iters * i), (1 : num.pars)] <- 
+                        sim.structure.repped[((num.iters * (i - 1)) + 1) : (num.iters * i) , (1 : num.pars)] <- 
                                 purrr::map_dfr(seq_len(num.iters) , ~sim.structure[i , ])
                 }
                 sim.structure.repped[ , "seed"] <- rnorm((num.conds * num.iters))
@@ -81,9 +81,8 @@ kfold_subsetter.vec <- function(n , k , seed = 7) {
                         err <- err.UC
                 }
                 Y <- X * beta + err                      #generate Y values
-                subset.ind <- kfold_subsetter.vec(n = n , k = 5) #NOTE: k is specified here; should be a part of 
-                                                                 ##sim.structure matrix that is input
-                combine <- list(Y = Y , X = X , err = err , subset = subset.ind , n = n , 
+                
+                combine <- list(Y = Y , X = X , err = err , n = n , 
                                 beta = beta , eta.x = eta.x , eta.y = eta.y , 
                                 seed = seed)        #create combined list of all values
                 return(combine)                       #save combined list of all values
@@ -103,114 +102,178 @@ bayes.data.pres <- sim.repped %>%
 #Note 1: Simple LM vs. CV vs. Bootstrapping
 #Note 2: Different freq vs. bayes k
 #Note 3: bayes and freq k incorporated into sim.structure
+#Note 4: various hyperparameters, including freq_K/K, diffusion, CV/Bootstrap/LM
 
 
-
-data <- bayes.data.pres[[1]]
-
-X <- data$X
-Y <- data$Y
-subset <- data$subset
-temp <- data.frame(X , Y , subset)
-bayes_K = 5
-
-train <- temp[temp$subset != 1 , c("X" , "Y")]
-test <- temp[temp$subset == 1 , c("X" , "Y")]
-fit <- lm(train$Y ~ train$X)
-
-for(i in 1:bayes_K) {
-        train <- temp[temp$subset != 1 , c("X" , "Y")]
-        test <- temp[temp$subset == 1 , c("X" , "Y")]
-        #RUN here
-        fit <- lm(train$)
+FreqInBayes.CV <- function(data , K) {
+        X <- data$X
+        Y <- data$Y
+        K = K
+        subset.ind <- kfold_subsetter.vec(n = length(X) , k = K)
+        temp <- data.frame(X , Y , subset = subset.ind)
+        out <- list()
+        for(i in 1 : (K + 1)) {
+                if(i == 1) {
+                        out[[i]] <- list(subset = subset.ind)
+                } else {
+                        train <- temp[temp$subset != (i-1) , c("X" , "Y")]
+                        test <- temp[temp$subset == (i-1) , c("X" , "Y")]
+                        #RUN here
+                        ###Frequentist Cross-validated regression
+                        library(caret)
+                        data_ctrl <- trainControl(method = "cv", number = freq_K)
+                        model_caret <- train(Y ~ X , data = train , trControl = data_ctrl ,
+                                             method = "lm" , na.action = na.pass)
+                        model_cv_final <- model_caret$finalModel
+                        model_cv_final <- summary(model_cv_final)
+                        sigma <- model_cv_final$sigma
+                        model_coeff <- model_cv_final$coefficients
+                        intercept_b <- model_coeff[1 , 1]
+                        intercept_SE <- model_coeff[1 , 2]
+                        X_b <- model_coeff[2 , 1]
+                        X_SE <- model_coeff[2 , 2]
+                        
+                        
+                        ###Diffusion parameter
+                        #\\\Diffusion = 0.1 #this should be changeable in the function (0 to 1)
+                        Diffusion <- Diffusion*100
+                        if (Diffusion == 0){
+                                Diffusion <- 1
+                        }
+                        SD_intercept <- intercept_SE*sqrt(Diffusion)
+                        SD_b <- intercept_b*sqrt(Diffusion)
+                        sigma <- sigma * sqrt(Diffusion)
+                        
+                        ###Bayesian section
+                        library(brms)
+                        #\\\family_brms = "gaussian" #this should be changable (gaussian,student,skew_normal)
+                        
+                        jj_intercept <- paste("normal(",intercept_b,',',SD_intercept, ")")
+                        jj_b <- paste("normal(",X_b,',',SD_b, ")")
+                        jj_sigma <- paste("student_t(", sigma, ',', 0, ',', 5, ")")
+                        
+                        
+                        m1priors <- c(
+                                prior_string(jj_intercept, class = "Intercept"),
+                                prior_string(jj_b, class = "b"),
+                                prior_string(jj_sigma, class = "sigma")
+                        )
+                        
+                        m1 <- brm(
+                                Y~X,
+                                data = test,
+                                prior = m1priors,
+                                family = family_brms,
+                                seed = 1,
+                                iter = 4000,
+                                chains = 4
+                        )
+                        
+                        y.m1 <- get_y(m1) 
+                        ypred <- posterior_linpred(m1, transform = TRUE) 
+                        e <- -1 * sweep(ypred, 2, y.m1) 
+                        var_ypred <- apply(ypred, 1, var) 
+                        var_e <- apply(e, 1, var) 
+                        Bayes_R2 <- var_ypred / (var_ypred + var_e)
+                        Bayes_R2
+                        
+                        return(summary(m1)) #return 
+                        
+                        out[[i]] <- list(Bayes_R2 = Bayes_R2 , 
+                                         Summary = summary(m1))
+                }
+                
+        }
+        return(out)
 }
 
-
-
-
-
-train.ind <- temp[ , "subset"]
-
-train <- split(temp[ , -3], f = temp[ , "subset"])
-
-
-kfold_cv <- function(data) {
-       
-}
-
-
-FreqyBayes.CV <- function(data , freq_K , R , K ,
+FreqInBayes.CV <- function(data , freq_K , R , K ,
                          Diffusion , family_brms = c("gaussian","student","skew_normal")) {
        #####frequentist section
-       
+        
        ####training data
        #///this needs to be flexible to the data that goes in
        #///currently only does from object with "X" and "Y" columns
         {X <- data$X
         Y <- data$Y}
+        subset.ind <- kfold_subsetter.vec(n = n , k = K) 
         subset <- data$subset
         temp <- data.frame(X , Y , subset)
         
-        for(i in 1:bayes_K) {
-                train <- temp[temp$subset != 1 , c("X" , "Y")]
-                test <- temp[temp$subset == 1 , c("X" , "Y")]
-                #RUN here
+        out <- list()
+        for(i in 1 : (K + 1)) {
+                if(i == 1) {
+                        out[[i]] <- list(subset = subset.ind)
+                } else {
+                        train <- temp[temp$subset != (i-1) , c("X" , "Y")]
+                        test <- temp[temp$subset == (i-1) , c("X" , "Y")]
+                        #RUN here
+                        ###Frequentist Cross-validated regression
+                        library(caret)
+                        data_ctrl <- trainControl(method = "cv", number = freq_K)
+                        model_caret <- train(Y ~ X , data = train , trControl = data_ctrl ,
+                                             method = "lm" , na.action = na.pass)
+                        model_cv_final <- model_caret$finalModel
+                        model_cv_final <- summary(model_cv_final)
+                        sigma <- model_cv_final$sigma
+                        model_coeff <- model_cv_final$coefficients
+                        intercept_b <- model_coeff[1 , 1]
+                        intercept_SE <- model_coeff[1 , 2]
+                        X_b <- model_coeff[2 , 1]
+                        X_SE <- model_coeff[2 , 2]
+                        
+                        
+                        ###Diffusion parameter
+                        #\\\Diffusion = 0.1 #this should be changeable in the function (0 to 1)
+                        Diffusion <- Diffusion*100
+                        if (Diffusion == 0){
+                                Diffusion <- 1
+                        }
+                        SD_intercept <- intercept_SE*sqrt(Diffusion)
+                        SD_b <- intercept_b*sqrt(Diffusion)
+                        sigma <- sigma * sqrt(Diffusion)
+                        
+                        ###Bayesian section
+                        library(brms)
+                        #\\\family_brms = "gaussian" #this should be changable (gaussian,student,skew_normal)
+                        
+                        jj_intercept <- paste("normal(",intercept_b,',',SD_intercept, ")")
+                        jj_b <- paste("normal(",X_b,',',SD_b, ")")
+                        jj_sigma <- paste("student_t(", sigma, ',', 0, ',', 5, ")")
+                        
+                        
+                        m1priors <- c(
+                                prior_string(jj_intercept, class = "Intercept"),
+                                prior_string(jj_b, class = "b"),
+                                prior_string(jj_sigma, class = "sigma")
+                        )
+                        
+                        m1 <- brm(
+                                Y~X,
+                                data = test,
+                                prior = m1priors,
+                                family = family_brms,
+                                seed = 1,
+                                iter = 4000,
+                                chains = 4
+                        )
+                        
+                        y.m1 <- get_y(m1) 
+                        ypred <- posterior_linpred(m1, transform = TRUE) 
+                        e <- -1 * sweep(ypred, 2, y.m1) 
+                        var_ypred <- apply(ypred, 1, var) 
+                        var_e <- apply(e, 1, var) 
+                        Bayes_R2 <- var_ypred / (var_ypred + var_e)
+                        Bayes_R2
+                        
+                        return(summary(m1)) #return 
+                        
+                        out[[i]] <- list(Bayes_R2 = Bayes_R2 , 
+                                         Summary = summary(m1))
+                }
+                
         }
-       
 
-       ###Cross-validated regression
-       library(caret)
-       data_ctrl <- trainControl(method = "cv", number = freq_K)
-       model_caret <- train(Y ~ X , data = train , trControl = data_ctrl ,
-                            method = "lm" , na.action = na.pass)
-       model_cv_final <- model_caret$finalModel
-       model_cv_final <- summary(model_cv_final)
-       sigma <- model_cv_final$sigma
-       model_coeff <- model_cv_final$coefficients
-       intercept_b <- model_coeff[1 , 1]
-       intercept_SE <- model_coeff[1 , 2]
-       X_b <- model_coeff[2 , 1]
-       X_SE <- model_coeff[2 , 2]
-
-
-       
-       ###Diffusion parameter
-       #\\\Diffusion = 0.1 #this should be changeable in the function (0 to 1)
-       Diffusion <- Diffusion*100
-       if (Diffusion == 0){
-              Diffusion <- 1
-       }
-       SD_intercept <- intercept_SE*sqrt(Diffusion)
-       SD_b <- intercept_b*sqrt(Diffusion)
-       sigma <- sigma * sqrt(Diffusion)
-       
-       ###Bayesian section
-       library(brms)
-       #\\\family_brms = "gaussian" #this should be changable (gaussian,student,skew_normal)
-       
-       jj_intercept <- paste("normal(",intercept_b,',',SD_intercept, ")")
-       jj_b <- paste("normal(",X_b,',',SD_b, ")")
-       jj_sigma <- paste("student_t(", sigma, ',', 0, ',', 5, ")")
-       
-       
-       m1priors <- c(
-              prior_string(jj_intercept, class = "Intercept"),
-              prior_string(jj_b, class = "b"),
-              prior_string(jj_sigma, class = "sigma")
-       )
-       
-       m1 <- brm(
-              Y~X,
-              data = test,
-              prior = m1priors,
-              family = family_brms,
-              seed = 1,
-              iter = 4000,
-              chains = 4
-       )
-       message("the summary of the Baysian model on the test data appears below")
-       return(summary(m1)) #return 
-       message("Use 'prior_summary(m1)' to extract priors based on the training data")
        
 }
 
@@ -221,3 +284,48 @@ FreqyBayes.CV <- function(data , freq_K , R , K ,
 test <- MattMohammad(data = bayes.data.full[[1]], method = "cv", K = 10, train_percent = .50, Diffusion = 0.1, family_brms = "gaussian")
 
 
+
+
+
+
+
+
+data <- bayes.data.pres[[1]]
+
+X <- data$X
+Y <- data$Y
+K = 5
+subset.ind <- kfold_subsetter.vec(n = length(X) , k = K)
+temp <- data.frame(X , Y , subset = subset.ind)
+table(temp[ , "subset"])
+
+train <- temp[temp$subset != 1 , c("X" , "Y")]
+test <- temp[temp$subset == 1 , c("X" , "Y")]
+fit <- lm(train$Y ~ train$X)
+
+out <- list()
+reg.out.test <- function(data , K) {
+        X <- data$X
+        Y <- data$Y
+        K = K
+        subset.ind <- kfold_subsetter.vec(n = length(X) , k = K)
+        temp <- data.frame(X , Y , subset = subset.ind)
+        for(i in 1 : (K + 1)) {
+                if(i == 1) {
+                        out[[i]] <- list(subset = subset.ind)
+                } else {
+                        train <- temp[temp$subset != (i-1) , c("X" , "Y")]
+                        test <- temp[temp$subset == (i-1) , c("X" , "Y")]
+                        #RUN here
+                        fit <- lm(train$Y ~ train$X)
+                        out[[i]] <- list(adj.r.squared = summary(fit)$adj.r.squared)
+                }
+                
+        }
+        return(out)
+}
+
+out.test.1 <- reg.out.test(data = data , K = 5)
+out.test.full <- lapply(bayes.data.pres , reg.out.test , K = 5)
+
+cond[[5]]$adj.r.squared
