@@ -273,6 +273,6 @@ MattMohammad <- function(data,
 
 
 #example
-MattMohammad(data = bayes.data.full[[1]], method = "cv", K = 10, train_percent = .50, Diffusion = 0.1, family_brms = "gaussian")
+test <- MattMohammad(data = bayes.data.full[[1]], method = "cv", K = 10, train_percent = .50, Diffusion = 0.1, family_brms = "gaussian")
 
 
