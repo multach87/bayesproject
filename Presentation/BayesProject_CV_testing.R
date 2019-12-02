@@ -69,6 +69,8 @@ kfold_subsetter <- function(data , k , seed = 7 , list = FALSE) {
 
 
 
+
+
 #reg.gen.pres
 {
         #libraries
@@ -93,7 +95,7 @@ kfold_subsetter <- function(data , k , seed = 7 , list = FALSE) {
                                                              nrow = (num.conds * num.iters))) 
                 colnames(sim.structure.repped) <- c("beta", "n" , "eta.x" , "eta.y" , "seed")
                 for(i in 1:nrow(sim.structure)) {
-                        sim.structure.repped[ ((num.iters * (i - 1)) + 1): (num.iters * i), (1:num.pars)] <- 
+                        sim.structure.repped[((num.iters * (i - 1)) + 1) : (num.iters * i), (1 : num.pars)] <- 
                                 purrr::map_dfr(seq_len(num.iters) , ~sim.structure[i , ])
                 }
                 sim.structure.repped[ , "seed"] <- rnorm((num.conds * num.iters))
