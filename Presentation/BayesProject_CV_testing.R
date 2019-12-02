@@ -103,12 +103,17 @@ bayes.data.pres <- sim.repped %>%
 #Note 2: Different freq vs. bayes k
 #Note 3: bayes and freq k incorporated into sim.structure
 #Note 4: various hyperparameters, including freq_K/K, diffusion, CV/Bootstrap/LM
+#Note 5: make a custom function that adaptively generates sim.structure and resulting
+##Note 5: simulated data for any given regression model
 
 
-FreqInBayes.CV <- function(data , K) {
-        X <- data$X
-        Y <- data$Y
-        K = K
+FreqInBayes.CV <- function(data , freq_K , K , Diffusion , 
+                           family_brms = c("gaussian","student","skew_normal")) {
+        #make dataframe
+        #\\\Only takes data with X and Y pieces currently, needs to be able to take both
+        {X <- data$X
+        Y <- data$Y}
+        K <- K
         subset.ind <- kfold_subsetter.vec(n = length(X) , k = K)
         temp <- data.frame(X , Y , subset = subset.ind)
         out <- list()
