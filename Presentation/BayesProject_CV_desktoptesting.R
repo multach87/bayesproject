@@ -179,7 +179,7 @@ ypred <- posterior_linpred(m1, transform = TRUE)
 FreqInBayes.CV <- function(data , freq_K , K , Diffusion , 
                            family_brms = c("gaussian","student","skew_normal")) {
         #print current status
-        cat("eta.x = " , data$eta.x , ", eta.y = " , data$eta.y , 
+        cat("n = " , length(data$X) , "eta.x = " , data$eta.x , ", eta.y = " , data$eta.y , 
             ", iter = " , data$iter , "\n") 
         #make dataframe
         #\\\Only takes data with X and Y pieces currently, 
@@ -187,8 +187,6 @@ FreqInBayes.CV <- function(data , freq_K , K , Diffusion ,
         X <- data$X
         Y <- data$Y
         K <- K
-        cat("X = " , X , "\n")
-        cat("Y = " , Y , "\n")
         subset.ind <- kfold_subsetter.vec(n = length(X) , k = K)
         cat("subset.ind = " , subset.ind , "\n")
         temp <- data.frame(X , Y , subset = subset.ind)
@@ -281,6 +279,8 @@ test.2 <- lapply(bayes.data.pres[1:5] , FreqInBayes.CV , freq_K = 5 , K = 5 ,
 
 
 
+cond.1 <- list(iter.1 = test.2[[1]][2]$Bayes_R2)
+test.2[[1]][[3]]$Bayes_R2
 
 
 

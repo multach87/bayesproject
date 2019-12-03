@@ -204,32 +204,81 @@ test.2 <- lapply(bayes.data.pres[1:5] , FreqInBayes.CV , freq_K = 5 , K = 5 ,
                  Diffusion = 0.1 , family_brms = "gaussian")
 
 data.1 <- test.2[1:5]
-R2_test <- numeric(5)
-data.1.1[[2]]$Bayes_R2
 
+#unified
+extract.info <- function(data , n.iter) {
+       temp <- data
+       R2 <- numeric(n.iter)
+       model.Int <- data.frame(matrix(nrow = n.iter , ncol = 7))
+       model.B <- data.frame(matrix(nrow = n.iter , ncol = 7))
+       #sim.condition <- data.frame(matrix(nrow = 1 , ncol = ncol(sim.repped)))
+       #sim.condition[1 , ] <- sim.repped
+       for(j in 1:5) {
+              R2[j] <- data[[(j + 1)]]$Bayes_R2
+              model.Int[j , ] <- data[[(j + 1)]]$Summary$fixed[1 , ]
+              model.B[j , ] <- data[[(j + 1)]]$Summary$fixed[2 , ]
+              
+       }
+       colnames(model.Int) <- colnames(model.B) <- colnames(data[[(j + 1)]]$Summary$fixed)
+       return(list(Bayes_R2 = R2 , 
+                   model.Int = model.Int , 
+                   model.B = model.B))
+}
+
+test <- lapply(test.2 , extract.info , n.iter = 5)
+
+#extract Bayes_R2
+R2_test <- numeric(5)
+for(j in 1:5) {
+       R2_test[j] <- test.2[[1]][[(j + 1)]]$Bayes_R2
+}
+##extract model coefs
+model_test.Int <- data.frame(matrix(nrow = 5 , ncol = 7))
+model_test.B <- data.frame(matrix(nrow = 5 , ncol = 7))
+R2_test <- numeric(5)
+for(j in 1:5) {
+       R2_test[j] <- test.2[[1]][[(j + 1)]]$Bayes_R2
+       model_test.Int[j , ] <- test.2[[1]][[(j + 1)]]$Summary$fixed[1 , ]
+       model_test.B[j , ] <- test.2[[1]][[(j + 1)]]$Summary$fixed[2 , ]
+       
+}
+colnames(model_test.Int) <- c(colnames(test.2[[1]][[2]]$Summary$fixed))
+colnames(model_test.B) <- c(colnames(test.2[[1]][[2]]$Summary$fixed))
+
+colnames(test.2[[1]][[2]]$Summary$fixed)
+
+for(i in 1:5) {
+       for(j in 1:5) {
+              R2_test[[i]][j] <- test.2[[i]][[(j + 1)]]$Bayes_R2
+       }
+}
+
+rbind()
+
+
+#test whether coefficient CI contains 0
 (data.1[[1]][[2]]$Summary$fixed[1 , "u-95% CI"] 
        - data.1[[1]][[2]]$Summary$fixed[1 , "l-95% CI"]) >= data.1[[1]][[2]]$Summary$fixed[1 , "u-95% CI"]
 (data.1[[1]][[2]]$Summary$fixed[2 , "u-95% CI"] 
        - data.1[[1]][[2]]$Summary$fixed[2 , "l-95% CI"]) >= data.1[[1]][[2]]$Summary$fixed[2 , "u-95% CI"]
 
-#extract iterations of separate conditions
+#condense iterations of same conditions
 condense.conds <- function(data , iter) {
        condense.data <- list()
        for(i in 1 : (length(data) / iter)) {
-              condense.data[[i]] <- list(data[])
+              l <- (((i - 1) * iter) + 1)
+              u <- (i * iter)
+              condense.data[[i]] <- list(data[l:u])
        }
+       return(condense.data)
 }
 
-new.data <- 
+new.data <- condense.conds(test.2 , iter = 5)
 
 
 
 
-for(i in 1:5) {
-       for(j in 1:5) {
-              R2_test[j] <- data.1[[i]][[(j + 1)]]$Bayes_R2
-       }
-}
+
 
 
 extract.info <- function(data) {
