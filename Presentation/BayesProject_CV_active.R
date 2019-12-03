@@ -104,8 +104,10 @@ library(caret)
 #Note 3: bayes and freq k incorporated into sim.structure
 #Note 4: various hyperparameters, including freq_K/K, diffusion, CV/Bootstrap/LM
 #Note 5: make a custom function that adaptively generates sim.structure and resulting
-##Note 5: simulated data for any given regression model
+##Note 5B: simulated data for any given regression model
 #Note 6: Make function to be able to work with either brms or stan
+#Note 7: What do we compare the results of these models against? 
+##Note 7B: Just a CV Bayesian regression? A standard Bayesian regression?
 
 
 
